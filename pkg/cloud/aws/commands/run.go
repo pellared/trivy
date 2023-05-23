@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/aquasecurity/trivy/pkg/commands/operation"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -15,7 +16,6 @@ import (
 	"github.com/aquasecurity/trivy/pkg/cloud"
 	"github.com/aquasecurity/trivy/pkg/cloud/aws/scanner"
 	"github.com/aquasecurity/trivy/pkg/cloud/report"
-	cmd "github.com/aquasecurity/trivy/pkg/commands/artifact"
 	cr "github.com/aquasecurity/trivy/pkg/compliance/report"
 	"github.com/aquasecurity/trivy/pkg/flag"
 	"github.com/aquasecurity/trivy/pkg/log"
@@ -147,6 +147,6 @@ func Run(ctx context.Context, opt flag.Options) error {
 		return fmt.Errorf("unable to write results: %w", err)
 	}
 
-	cmd.Exit(opt, r.Failed())
+	operation.Exit(opt, r.Failed())
 	return nil
 }

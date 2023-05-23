@@ -465,11 +465,10 @@ func NewRepositoryCommand(globalFlags *flag.GlobalFlagGroup) *cobra.Command {
 
 func NewConvertCommand(globalFlags *flag.GlobalFlagGroup) *cobra.Command {
 	convertFlags := &flag.Flags{
-		ConvertFlagGroup: flag.NewConvertFlagGroup(),
-		ReportFlagGroup:  flag.NewReportFlagGroup(),
+		ReportFlagGroup: flag.NewReportFlagGroup(),
 	}
 	cmd := &cobra.Command{
-		Use:     "convert [flags] REPORT_FILENAME",
+		Use:     "convert [flags] RESULT_JSON",
 		Aliases: []string{"conv"},
 		Short:   "convert json report",
 		Example: `  # report conversion
@@ -804,7 +803,7 @@ func NewModuleCommand(globalFlags *flag.GlobalFlagGroup) *cobra.Command {
 				if err != nil {
 					return xerrors.Errorf("flag error: %w", err)
 				}
-				return module.Install(cmd.Context(), opts.ModuleDir, repo, opts.Quiet, opts.Registry())
+				return module.Install(cmd.Context(), opts.ModuleDir, repo, opts.Quiet, opts.RegistryOpts())
 			},
 		},
 		&cobra.Command{
