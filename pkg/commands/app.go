@@ -498,14 +498,16 @@ func NewRepositoryCommand(globalFlags *flag.GlobalFlagGroup) *cobra.Command {
 
 func NewConvertCommand(globalFlags *flag.GlobalFlagGroup) *cobra.Command {
 	convertFlags := &flag.Flags{
+		ScanFlagGroup:   &flag.ScanFlagGroup{},
 		ReportFlagGroup: flag.NewReportFlagGroup(),
 	}
 	cmd := &cobra.Command{
 		Use:     "convert [flags] RESULT_JSON",
 		Aliases: []string{"conv"},
-		Short:   "convert json report",
+		GroupID: groupUtility,
+		Short:   "Convert Trivy JSON report into a different format",
 		Example: `  # report conversion
-  $ trivy convert --report summary result.json
+  $ trivy image --format json --output result.json --list-all-pkgs debian:11
   $ trivy convert --format cyclonedx --output result.cdx result.json
 `,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
