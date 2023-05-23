@@ -3,23 +3,25 @@ package local
 import (
 	"context"
 	"errors"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"github.com/aquasecurity/trivy/pkg/fanal/analyzer"
-	"github.com/aquasecurity/trivy/pkg/fanal/analyzer/config"
 	"github.com/aquasecurity/trivy/pkg/fanal/artifact"
 	"github.com/aquasecurity/trivy/pkg/fanal/cache"
 	"github.com/aquasecurity/trivy/pkg/fanal/types"
+	"github.com/aquasecurity/trivy/pkg/misconf"
 
 	_ "github.com/aquasecurity/trivy/pkg/fanal/analyzer/config/all"
 	_ "github.com/aquasecurity/trivy/pkg/fanal/analyzer/language/python/pip"
 	_ "github.com/aquasecurity/trivy/pkg/fanal/analyzer/os/alpine"
 	_ "github.com/aquasecurity/trivy/pkg/fanal/analyzer/pkg/apk"
 	_ "github.com/aquasecurity/trivy/pkg/fanal/analyzer/secret"
-	_ "github.com/aquasecurity/trivy/pkg/fanal/handler/misconf"
 	_ "github.com/aquasecurity/trivy/pkg/fanal/handler/sysfile"
 )
 
@@ -31,7 +33,7 @@ func TestArtifact_Inspect(t *testing.T) {
 		name               string
 		fields             fields
 		artifactOpt        artifact.Option
-		scannerOpt         config.ScannerOption
+		scannerOpt         misconf.ScannerOption
 		disabledAnalyzers  []analyzer.Type
 		disabledHandlers   []types.HandlerType
 		putBlobExpectation cache.ArtifactCachePutBlobExpectation
@@ -45,10 +47,10 @@ func TestArtifact_Inspect(t *testing.T) {
 			},
 			putBlobExpectation: cache.ArtifactCachePutBlobExpectation{
 				Args: cache.ArtifactCachePutBlobArgs{
-					BlobID: "sha256:e29d5c9d3e152cc092c072a2327247c5877b67ef32fa57fe5e809e610581eee8",
+					BlobID: "sha256:2846219523ad45fe4a17495304ed0a36163f1bd66e7fb0b4c19c5d1d4a966c82",
 					BlobInfo: types.BlobInfo{
 						SchemaVersion: types.BlobJSONSchemaVersion,
-						OS: &types.OS{
+						OS: types.OS{
 							Family: "alpine",
 							Name:   "3.11.6",
 						},
@@ -57,8 +59,13 @@ func TestArtifact_Inspect(t *testing.T) {
 								FilePath: "lib/apk/db/installed",
 								Packages: []types.Package{
 									{
-										Name: "musl", Version: "1.1.24-r2", SrcName: "musl", SrcVersion: "1.1.24-r2",
-										Licenses: []string{"MIT"},
+										ID:         "musl@1.1.24-r2",
+										Name:       "musl",
+										Version:    "1.1.24-r2",
+										SrcName:    "musl",
+										SrcVersion: "1.1.24-r2",
+										Licenses:   []string{"MIT"},
+										Digest:     "sha1:cb2316a189ebee5282c4a9bd98794cc2477a74c6",
 									},
 								},
 							},
@@ -70,9 +77,9 @@ func TestArtifact_Inspect(t *testing.T) {
 			want: types.ArtifactReference{
 				Name: "host",
 				Type: types.ArtifactFilesystem,
-				ID:   "sha256:e29d5c9d3e152cc092c072a2327247c5877b67ef32fa57fe5e809e610581eee8",
+				ID:   "sha256:2846219523ad45fe4a17495304ed0a36163f1bd66e7fb0b4c19c5d1d4a966c82",
 				BlobIDs: []string{
-					"sha256:e29d5c9d3e152cc092c072a2327247c5877b67ef32fa57fe5e809e610581eee8",
+					"sha256:2846219523ad45fe4a17495304ed0a36163f1bd66e7fb0b4c19c5d1d4a966c82",
 				},
 			},
 		},
@@ -82,11 +89,15 @@ func TestArtifact_Inspect(t *testing.T) {
 				dir: "./testdata/alpine",
 			},
 			artifactOpt: artifact.Option{
-				DisabledAnalyzers: []analyzer.Type{analyzer.TypeAlpine, analyzer.TypeApk, analyzer.TypePip},
+				DisabledAnalyzers: []analyzer.Type{
+					analyzer.TypeAlpine,
+					analyzer.TypeApk,
+					analyzer.TypePip,
+				},
 			},
 			putBlobExpectation: cache.ArtifactCachePutBlobExpectation{
 				Args: cache.ArtifactCachePutBlobArgs{
-					BlobID: "sha256:44b3bdb81eb5dedef26e5c06fd6ef8a0df7b6925910942b00b6fced3a720a61c",
+					BlobID: "sha256:0fbf0f996ea580c0a7408a34290f2f061e6577995cd63c475ecf8b262a7622d1",
 					BlobInfo: types.BlobInfo{
 						SchemaVersion: types.BlobJSONSchemaVersion,
 					},
@@ -96,9 +107,9 @@ func TestArtifact_Inspect(t *testing.T) {
 			want: types.ArtifactReference{
 				Name: "host",
 				Type: types.ArtifactFilesystem,
-				ID:   "sha256:44b3bdb81eb5dedef26e5c06fd6ef8a0df7b6925910942b00b6fced3a720a61c",
+				ID:   "sha256:0fbf0f996ea580c0a7408a34290f2f061e6577995cd63c475ecf8b262a7622d1",
 				BlobIDs: []string{
-					"sha256:44b3bdb81eb5dedef26e5c06fd6ef8a0df7b6925910942b00b6fced3a720a61c",
+					"sha256:0fbf0f996ea580c0a7408a34290f2f061e6577995cd63c475ecf8b262a7622d1",
 				},
 			},
 		},
@@ -109,10 +120,10 @@ func TestArtifact_Inspect(t *testing.T) {
 			},
 			putBlobExpectation: cache.ArtifactCachePutBlobExpectation{
 				Args: cache.ArtifactCachePutBlobArgs{
-					BlobID: "sha256:e29d5c9d3e152cc092c072a2327247c5877b67ef32fa57fe5e809e610581eee8",
+					BlobID: "sha256:2846219523ad45fe4a17495304ed0a36163f1bd66e7fb0b4c19c5d1d4a966c82",
 					BlobInfo: types.BlobInfo{
 						SchemaVersion: types.BlobJSONSchemaVersion,
-						OS: &types.OS{
+						OS: types.OS{
 							Family: "alpine",
 							Name:   "3.11.6",
 						},
@@ -121,8 +132,13 @@ func TestArtifact_Inspect(t *testing.T) {
 								FilePath: "lib/apk/db/installed",
 								Packages: []types.Package{
 									{
-										Name: "musl", Version: "1.1.24-r2", SrcName: "musl", SrcVersion: "1.1.24-r2",
-										Licenses: []string{"MIT"},
+										ID:         "musl@1.1.24-r2",
+										Name:       "musl",
+										Version:    "1.1.24-r2",
+										SrcName:    "musl",
+										SrcVersion: "1.1.24-r2",
+										Licenses:   []string{"MIT"},
+										Digest:     "sha1:cb2316a189ebee5282c4a9bd98794cc2477a74c6",
 									},
 								},
 							},
@@ -140,7 +156,7 @@ func TestArtifact_Inspect(t *testing.T) {
 			fields: fields{
 				dir: "./testdata/unknown",
 			},
-			wantErr: "no such file or directory",
+			wantErr: "walk error",
 		},
 		{
 			name: "happy path with single file",
@@ -149,7 +165,7 @@ func TestArtifact_Inspect(t *testing.T) {
 			},
 			putBlobExpectation: cache.ArtifactCachePutBlobExpectation{
 				Args: cache.ArtifactCachePutBlobArgs{
-					BlobID: "sha256:f7c8f14888e2908b613769b9e98816fa40d84980872f3777b656d11b8fb544fb",
+					BlobID: "sha256:874588e7714441c06344a11526d73fe4d8c386d85e6d5498eab3cde13cae05ac",
 					BlobInfo: types.BlobInfo{
 						SchemaVersion: types.BlobJSONSchemaVersion,
 						Applications: []types.Application{
@@ -171,9 +187,9 @@ func TestArtifact_Inspect(t *testing.T) {
 			want: types.ArtifactReference{
 				Name: "testdata/requirements.txt",
 				Type: types.ArtifactFilesystem,
-				ID:   "sha256:f7c8f14888e2908b613769b9e98816fa40d84980872f3777b656d11b8fb544fb",
+				ID:   "sha256:874588e7714441c06344a11526d73fe4d8c386d85e6d5498eab3cde13cae05ac",
 				BlobIDs: []string{
-					"sha256:f7c8f14888e2908b613769b9e98816fa40d84980872f3777b656d11b8fb544fb",
+					"sha256:874588e7714441c06344a11526d73fe4d8c386d85e6d5498eab3cde13cae05ac",
 				},
 			},
 		},
@@ -184,7 +200,7 @@ func TestArtifact_Inspect(t *testing.T) {
 			},
 			putBlobExpectation: cache.ArtifactCachePutBlobExpectation{
 				Args: cache.ArtifactCachePutBlobArgs{
-					BlobID: "sha256:f7c8f14888e2908b613769b9e98816fa40d84980872f3777b656d11b8fb544fb",
+					BlobID: "sha256:874588e7714441c06344a11526d73fe4d8c386d85e6d5498eab3cde13cae05ac",
 					BlobInfo: types.BlobInfo{
 						SchemaVersion: types.BlobJSONSchemaVersion,
 						Applications: []types.Application{
@@ -206,9 +222,9 @@ func TestArtifact_Inspect(t *testing.T) {
 			want: types.ArtifactReference{
 				Name: "testdata/requirements.txt",
 				Type: types.ArtifactFilesystem,
-				ID:   "sha256:f7c8f14888e2908b613769b9e98816fa40d84980872f3777b656d11b8fb544fb",
+				ID:   "sha256:874588e7714441c06344a11526d73fe4d8c386d85e6d5498eab3cde13cae05ac",
 				BlobIDs: []string{
-					"sha256:f7c8f14888e2908b613769b9e98816fa40d84980872f3777b656d11b8fb544fb",
+					"sha256:874588e7714441c06344a11526d73fe4d8c386d85e6d5498eab3cde13cae05ac",
 				},
 			},
 		},
@@ -234,31 +250,103 @@ func TestArtifact_Inspect(t *testing.T) {
 	}
 }
 
-func TestBuildAbsPath(t *testing.T) {
+func TestBuildPathsToSkip(t *testing.T) {
 	tests := []struct {
-		name          string
-		base          string
-		paths         []string
-		expectedPaths []string
+		name  string
+		oses  []string
+		paths []string
+		base  string
+		want  []string
 	}{
-		{"absolute path", "/testBase", []string{"/testPath"}, []string{"/testPath"}},
-		{"relative path", "/testBase", []string{"testPath"}, []string{"/testBase/testPath"}},
-		{"path have '.'", "/testBase", []string{"./testPath"}, []string{"/testBase/testPath"}},
-		{"path have '..'", "/testBase", []string{"../testPath/"}, []string{"/testPath"}},
+		// Linux/macOS
+		{
+			name: "path - abs, base - abs, not joining paths",
+			oses: []string{
+				"linux",
+				"darwin",
+			},
+			base:  "/foo",
+			paths: []string{"/foo/bar"},
+			want:  []string{"bar"},
+		},
+		{
+			name: "path - abs, base - rel",
+			oses: []string{
+				"linux",
+				"darwin",
+			},
+			base: "foo",
+			paths: func() []string {
+				abs, err := filepath.Abs("foo/bar")
+				require.NoError(t, err)
+				return []string{abs}
+			}(),
+			want: []string{"bar"},
+		},
+		{
+			name: "path - rel, base - rel, joining paths",
+			oses: []string{
+				"linux",
+				"darwin",
+			},
+			base:  "foo",
+			paths: []string{"bar"},
+			want:  []string{"bar"},
+		},
+		{
+			name: "path - rel, base - rel, not joining paths",
+			oses: []string{
+				"linux",
+				"darwin",
+			},
+			base:  "foo",
+			paths: []string{"foo/bar/bar"},
+			want:  []string{"bar/bar"},
+		},
+		{
+			name: "path - rel with dot, base - rel, removing the leading dot and not joining paths",
+			oses: []string{
+				"linux",
+				"darwin",
+			},
+			base:  "foo",
+			paths: []string{"./foo/bar"},
+			want:  []string{"bar"},
+		},
+		{
+			name: "path - rel, base - dot",
+			oses: []string{
+				"linux",
+				"darwin",
+			},
+			base:  ".",
+			paths: []string{"foo/bar"},
+			want:  []string{"foo/bar"},
+		},
+		// Windows
+		{
+			name:  "path - rel, base - rel. Skip common prefix",
+			oses:  []string{"windows"},
+			base:  "foo",
+			paths: []string{"foo\\bar\\bar"},
+			want:  []string{"bar/bar"},
+		},
+		{
+			name:  "path - rel, base - dot, windows",
+			oses:  []string{"windows"},
+			base:  ".",
+			paths: []string{"foo\\bar"},
+			want:  []string{"foo/bar"},
+		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			got := buildAbsPaths(test.base, test.paths)
-			if len(test.paths) != len(got) {
-				t.Errorf("paths not equals, expected: %s, got: %s", test.expectedPaths, got)
-			} else {
-				for i, path := range test.expectedPaths {
-					if path != got[i] {
-						t.Errorf("paths not equals, expected: %s, got: %s", test.expectedPaths, got)
-					}
-				}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if !slices.Contains(tt.oses, runtime.GOOS) {
+				t.Skipf("Skip path tests for %q", tt.oses)
 			}
+			got := buildPathsToSkip(tt.base, tt.paths)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -280,15 +368,7 @@ func TestTerraformMisconfigurationScan(t *testing.T) {
 				dir: "./testdata/misconfig/terraform/single-failure/src",
 			},
 			artifactOpt: artifact.Option{
-				AnalyzerGroup:     "",
-				DisabledAnalyzers: nil,
-				DisabledHandlers:  nil,
-				SkipFiles:         nil,
-				SkipDirs:          nil,
-				NoProgress:        false,
-				Offline:           false,
-				InsecureSkipTLS:   false,
-				MisconfScannerOption: config.ScannerOption{
+				MisconfScannerOption: misconf.ScannerOption{
 					RegoOnly:    true,
 					Namespaces:  []string{"user"},
 					PolicyPaths: []string{"./testdata/misconfig/terraform/single-failure/rego"},
@@ -298,14 +378,12 @@ func TestTerraformMisconfigurationScan(t *testing.T) {
 				Args: cache.ArtifactCachePutBlobArgs{
 					BlobIDAnything: true,
 					BlobInfo: types.BlobInfo{
-						SchemaVersion: types.BlobJSONSchemaVersion,
+						SchemaVersion: 2,
 						Misconfigurations: []types.Misconfiguration{
 							{
-								FileType:  "terraform",
-								FilePath:  "main.tf",
-								Successes: nil,
-								Warnings:  nil,
-								Failures: []types.MisconfResult{
+								FileType: "terraform",
+								FilePath: "main.tf",
+								Failures: types.MisconfResults{
 									{
 										Namespace: "user.something",
 										Query:     "data.user.something.deny",
@@ -318,9 +396,7 @@ func TestTerraformMisconfigurationScan(t *testing.T) {
 											Description:        "This is a test policy.",
 											Severity:           "LOW",
 											RecommendedActions: "Have a cup of tea.",
-											References: []string{
-												"https://trivy.dev/",
-											},
+											References:         []string{"https://trivy.dev/"},
 										},
 										CauseMetadata: types.CauseMetadata{
 											Resource:  "aws_s3_bucket.asd",
@@ -329,11 +405,8 @@ func TestTerraformMisconfigurationScan(t *testing.T) {
 											StartLine: 1,
 											EndLine:   3,
 										},
-										Traces: nil,
 									},
 								},
-								Exceptions: nil,
-								Layer:      types.Layer{},
 							},
 						},
 					},
@@ -343,9 +416,9 @@ func TestTerraformMisconfigurationScan(t *testing.T) {
 			want: types.ArtifactReference{
 				Name: "testdata/misconfig/terraform/single-failure/src",
 				Type: types.ArtifactFilesystem,
-				ID:   "sha256:1defea0dd3834fe20d307d25aae0c9edc0054a99403b55e4ac9a380866f5eac7",
+				ID:   "sha256:b17b243265d2c555c049753f42c76d3dc478d55851cc9461cbd23e618cb8f0eb",
 				BlobIDs: []string{
-					"sha256:1defea0dd3834fe20d307d25aae0c9edc0054a99403b55e4ac9a380866f5eac7",
+					"sha256:b17b243265d2c555c049753f42c76d3dc478d55851cc9461cbd23e618cb8f0eb",
 				},
 			},
 		},
@@ -355,15 +428,7 @@ func TestTerraformMisconfigurationScan(t *testing.T) {
 				dir: "./testdata/misconfig/terraform/multiple-failures/src",
 			},
 			artifactOpt: artifact.Option{
-				AnalyzerGroup:     "",
-				DisabledAnalyzers: nil,
-				DisabledHandlers:  nil,
-				SkipFiles:         nil,
-				SkipDirs:          nil,
-				NoProgress:        false,
-				Offline:           false,
-				InsecureSkipTLS:   false,
-				MisconfScannerOption: config.ScannerOption{
+				MisconfScannerOption: misconf.ScannerOption{
 					RegoOnly:    true,
 					Namespaces:  []string{"user"},
 					PolicyPaths: []string{"./testdata/misconfig/terraform/multiple-failures/rego"},
@@ -373,14 +438,12 @@ func TestTerraformMisconfigurationScan(t *testing.T) {
 				Args: cache.ArtifactCachePutBlobArgs{
 					BlobIDAnything: true,
 					BlobInfo: types.BlobInfo{
-						SchemaVersion: types.BlobJSONSchemaVersion,
+						SchemaVersion: 2,
 						Misconfigurations: []types.Misconfiguration{
 							{
-								FileType:  "terraform",
-								FilePath:  "main.tf",
-								Successes: nil,
-								Warnings:  nil,
-								Failures: []types.MisconfResult{
+								FileType: "terraform",
+								FilePath: "main.tf",
+								Failures: types.MisconfResults{
 									{
 										Namespace: "user.something",
 										Query:     "data.user.something.deny",
@@ -393,34 +456,7 @@ func TestTerraformMisconfigurationScan(t *testing.T) {
 											Description:        "This is a test policy.",
 											Severity:           "LOW",
 											RecommendedActions: "Have a cup of tea.",
-											References: []string{
-												"https://trivy.dev/",
-											},
-										},
-										CauseMetadata: types.CauseMetadata{
-											Resource:  "aws_s3_bucket.two",
-											Provider:  "Generic",
-											Service:   "general",
-											StartLine: 5,
-											EndLine:   7,
-										},
-										Traces: nil,
-									},
-									{
-										Namespace: "user.something",
-										Query:     "data.user.something.deny",
-										Message:   "No buckets allowed!",
-										PolicyMetadata: types.PolicyMetadata{
-											ID:                 "TEST001",
-											AVDID:              "AVD-TEST-0001",
-											Type:               "Terraform Security Check",
-											Title:              "Test policy",
-											Description:        "This is a test policy.",
-											Severity:           "LOW",
-											RecommendedActions: "Have a cup of tea.",
-											References: []string{
-												"https://trivy.dev/",
-											},
+											References:         []string{"https://trivy.dev/"},
 										},
 										CauseMetadata: types.CauseMetadata{
 											Resource:  "aws_s3_bucket.one",
@@ -429,18 +465,7 @@ func TestTerraformMisconfigurationScan(t *testing.T) {
 											StartLine: 1,
 											EndLine:   3,
 										},
-										Traces: nil,
 									},
-								},
-								Exceptions: nil,
-								Layer:      types.Layer{},
-							},
-							{
-								FileType:  "terraform",
-								FilePath:  "more.tf",
-								Successes: nil,
-								Warnings:  nil,
-								Failures: []types.MisconfResult{
 									{
 										Namespace: "user.something",
 										Query:     "data.user.something.deny",
@@ -453,22 +478,45 @@ func TestTerraformMisconfigurationScan(t *testing.T) {
 											Description:        "This is a test policy.",
 											Severity:           "LOW",
 											RecommendedActions: "Have a cup of tea.",
-											References: []string{
-												"https://trivy.dev/",
-											},
+											References:         []string{"https://trivy.dev/"},
+										},
+										CauseMetadata: types.CauseMetadata{
+											Resource:  "aws_s3_bucket.two",
+											Provider:  "Generic",
+											Service:   "general",
+											StartLine: 5,
+											EndLine:   7,
+										},
+									},
+								},
+							},
+							{
+								FileType: "terraform",
+								FilePath: "more.tf",
+								Failures: types.MisconfResults{
+									{
+										Namespace: "user.something",
+										Query:     "data.user.something.deny",
+										Message:   "No buckets allowed!",
+										PolicyMetadata: types.PolicyMetadata{
+											ID:                 "TEST001",
+											AVDID:              "AVD-TEST-0001",
+											Type:               "Terraform Security Check",
+											Title:              "Test policy",
+											Description:        "This is a test policy.",
+											Severity:           "LOW",
+											RecommendedActions: "Have a cup of tea.",
+											References:         []string{"https://trivy.dev/"},
 										},
 										CauseMetadata: types.CauseMetadata{
 											Resource:  "aws_s3_bucket.three",
 											Provider:  "Generic",
 											Service:   "general",
-											StartLine: 2,
-											EndLine:   4,
+											StartLine: 1,
+											EndLine:   3,
 										},
-										Traces: nil,
 									},
 								},
-								Exceptions: nil,
-								Layer:      types.Layer{},
 							},
 						},
 					},
@@ -478,9 +526,9 @@ func TestTerraformMisconfigurationScan(t *testing.T) {
 			want: types.ArtifactReference{
 				Name: "testdata/misconfig/terraform/multiple-failures/src",
 				Type: types.ArtifactFilesystem,
-				ID:   "sha256:2c8264334e81fbf9bb33f470f1d1c636fa3ccd1bf50f078836e4aa2d816a7d7f",
+				ID:   "sha256:4f9b3fe0f3d7b75fa7120740fe2f179eb5c250646d30186f47bc5eb148a77229",
 				BlobIDs: []string{
-					"sha256:2c8264334e81fbf9bb33f470f1d1c636fa3ccd1bf50f078836e4aa2d816a7d7f",
+					"sha256:4f9b3fe0f3d7b75fa7120740fe2f179eb5c250646d30186f47bc5eb148a77229",
 				},
 			},
 		},
@@ -490,15 +538,7 @@ func TestTerraformMisconfigurationScan(t *testing.T) {
 				dir: "./testdata/misconfig/terraform/no-results/src",
 			},
 			artifactOpt: artifact.Option{
-				AnalyzerGroup:     "",
-				DisabledAnalyzers: nil,
-				DisabledHandlers:  nil,
-				SkipFiles:         nil,
-				SkipDirs:          nil,
-				NoProgress:        false,
-				Offline:           false,
-				InsecureSkipTLS:   false,
-				MisconfScannerOption: config.ScannerOption{
+				MisconfScannerOption: misconf.ScannerOption{
 					RegoOnly:    true,
 					Namespaces:  []string{"user"},
 					PolicyPaths: []string{"./testdata/misconfig/terraform/no-results/rego"},
@@ -516,9 +556,9 @@ func TestTerraformMisconfigurationScan(t *testing.T) {
 			want: types.ArtifactReference{
 				Name: "testdata/misconfig/terraform/no-results/src",
 				Type: types.ArtifactFilesystem,
-				ID:   "sha256:58371119b88104d4a643bda59a6957e5777174d62a09e179bbad7744e9632128",
+				ID:   "sha256:cf90e43f7fb29358faf6f486db722ee739122347ec94839c7f3861489f242213",
 				BlobIDs: []string{
-					"sha256:58371119b88104d4a643bda59a6957e5777174d62a09e179bbad7744e9632128",
+					"sha256:cf90e43f7fb29358faf6f486db722ee739122347ec94839c7f3861489f242213",
 				},
 			},
 		},
@@ -528,15 +568,7 @@ func TestTerraformMisconfigurationScan(t *testing.T) {
 				dir: "./testdata/misconfig/terraform/passed/src",
 			},
 			artifactOpt: artifact.Option{
-				AnalyzerGroup:     "",
-				DisabledAnalyzers: nil,
-				DisabledHandlers:  nil,
-				SkipFiles:         nil,
-				SkipDirs:          nil,
-				NoProgress:        false,
-				Offline:           false,
-				InsecureSkipTLS:   false,
-				MisconfScannerOption: config.ScannerOption{
+				MisconfScannerOption: misconf.ScannerOption{
 					RegoOnly:    true,
 					Namespaces:  []string{"user"},
 					PolicyPaths: []string{"./testdata/misconfig/terraform/passed/rego"},
@@ -546,16 +578,15 @@ func TestTerraformMisconfigurationScan(t *testing.T) {
 				Args: cache.ArtifactCachePutBlobArgs{
 					BlobIDAnything: true,
 					BlobInfo: types.BlobInfo{
-						SchemaVersion: types.BlobJSONSchemaVersion,
+						SchemaVersion: 2,
 						Misconfigurations: []types.Misconfiguration{
 							{
 								FileType: "terraform",
 								FilePath: ".",
-								Successes: []types.MisconfResult{
+								Successes: types.MisconfResults{
 									{
 										Namespace: "user.something",
 										Query:     "data.user.something.deny",
-										Message:   "",
 										PolicyMetadata: types.PolicyMetadata{
 											ID:                 "TEST001",
 											AVDID:              "AVD-TEST-0001",
@@ -564,20 +595,14 @@ func TestTerraformMisconfigurationScan(t *testing.T) {
 											Description:        "This is a test policy.",
 											Severity:           "LOW",
 											RecommendedActions: "Have a cup of tea.",
-											References: []string{
-												"https://trivy.dev/",
-											},
+											References:         []string{"https://trivy.dev/"},
 										},
 										CauseMetadata: types.CauseMetadata{
-											Provider:  "Generic",
-											Service:   "general",
-											StartLine: 0,
-											EndLine:   0,
+											Provider: "Generic",
+											Service:  "general",
 										},
-										Traces: nil,
 									},
 								},
-								Layer: types.Layer{},
 							},
 						},
 					},
@@ -587,9 +612,91 @@ func TestTerraformMisconfigurationScan(t *testing.T) {
 			want: types.ArtifactReference{
 				Name: "testdata/misconfig/terraform/passed/src",
 				Type: types.ArtifactFilesystem,
-				ID:   "sha256:e03b7145ba62e9fd03692132e49ce27420eed532a5de4cf896e3c6a6239c9157",
+				ID:   "sha256:4a7baddfc7b3e06e3f246c0680d879aecf539a07a08b48ae5710e997ec486d75",
 				BlobIDs: []string{
-					"sha256:e03b7145ba62e9fd03692132e49ce27420eed532a5de4cf896e3c6a6239c9157",
+					"sha256:4a7baddfc7b3e06e3f246c0680d879aecf539a07a08b48ae5710e997ec486d75",
+				},
+			},
+		},
+		{
+			name: "multiple failures busted relative paths",
+			fields: fields{
+				dir: "./testdata/misconfig/terraform/busted-relative-paths/src/child/main.tf",
+			},
+			artifactOpt: artifact.Option{
+				MisconfScannerOption: misconf.ScannerOption{
+					RegoOnly:    true,
+					Namespaces:  []string{"user"},
+					PolicyPaths: []string{"./testdata/misconfig/terraform/busted-relative-paths/rego"},
+				},
+			},
+			putBlobExpectation: cache.ArtifactCachePutBlobExpectation{
+				Args: cache.ArtifactCachePutBlobArgs{
+					BlobIDAnything: true,
+					BlobInfo: types.BlobInfo{
+						SchemaVersion: 2,
+						Misconfigurations: []types.Misconfiguration{
+							{
+								FileType: "terraform",
+								FilePath: "main.tf",
+								Failures: types.MisconfResults{
+									{
+										Namespace: "user.something",
+										Query:     "data.user.something.deny",
+										Message:   "No buckets allowed!",
+										PolicyMetadata: types.PolicyMetadata{
+											ID:                 "TEST001",
+											AVDID:              "AVD-TEST-0001",
+											Type:               "Terraform Security Check",
+											Title:              "Test policy",
+											Description:        "This is a test policy.",
+											Severity:           "LOW",
+											RecommendedActions: "Have a cup of tea.",
+											References:         []string{"https://trivy.dev/"},
+										},
+										CauseMetadata: types.CauseMetadata{
+											Resource:  "aws_s3_bucket.one",
+											Provider:  "Generic",
+											Service:   "general",
+											StartLine: 1,
+											EndLine:   3,
+										},
+									},
+									{
+										Namespace: "user.something",
+										Query:     "data.user.something.deny",
+										Message:   "No buckets allowed!",
+										PolicyMetadata: types.PolicyMetadata{
+											ID:                 "TEST001",
+											AVDID:              "AVD-TEST-0001",
+											Type:               "Terraform Security Check",
+											Title:              "Test policy",
+											Description:        "This is a test policy.",
+											Severity:           "LOW",
+											RecommendedActions: "Have a cup of tea.",
+											References:         []string{"https://trivy.dev/"},
+										},
+										CauseMetadata: types.CauseMetadata{
+											Resource:  "aws_s3_bucket.two",
+											Provider:  "Generic",
+											Service:   "general",
+											StartLine: 5,
+											EndLine:   7,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				Returns: cache.ArtifactCachePutBlobReturns{},
+			},
+			want: types.ArtifactReference{
+				Name: "testdata/misconfig/terraform/busted-relative-paths/src/child/main.tf",
+				Type: types.ArtifactFilesystem,
+				ID:   "sha256:3f85f73698c7f29b181030749808d634575547aecab68d17c114fefaaa67f990",
+				BlobIDs: []string{
+					"sha256:3f85f73698c7f29b181030749808d634575547aecab68d17c114fefaaa67f990",
 				},
 			},
 		},
@@ -600,7 +707,6 @@ func TestTerraformMisconfigurationScan(t *testing.T) {
 			c.ApplyPutBlobExpectation(tt.putBlobExpectation)
 			tt.artifactOpt.DisabledHandlers = []types.HandlerType{
 				types.SystemFileFilteringPostHandler,
-				types.GoModMergePostHandler,
 			}
 			a, err := NewArtifact(tt.fields.dir, c, tt.artifactOpt)
 			require.NoError(t, err)
@@ -629,15 +735,7 @@ func TestCloudFormationMisconfigurationScan(t *testing.T) {
 				dir: "./testdata/misconfig/cloudformation/single-failure/src",
 			},
 			artifactOpt: artifact.Option{
-				AnalyzerGroup:     "",
-				DisabledAnalyzers: nil,
-				DisabledHandlers:  nil,
-				SkipFiles:         nil,
-				SkipDirs:          nil,
-				NoProgress:        false,
-				Offline:           false,
-				InsecureSkipTLS:   false,
-				MisconfScannerOption: config.ScannerOption{
+				MisconfScannerOption: misconf.ScannerOption{
 					RegoOnly:    true,
 					Namespaces:  []string{"user"},
 					PolicyPaths: []string{"./testdata/misconfig/cloudformation/single-failure/rego"},
@@ -647,14 +745,12 @@ func TestCloudFormationMisconfigurationScan(t *testing.T) {
 				Args: cache.ArtifactCachePutBlobArgs{
 					BlobIDAnything: true,
 					BlobInfo: types.BlobInfo{
-						SchemaVersion: types.BlobJSONSchemaVersion,
+						SchemaVersion: 2,
 						Misconfigurations: []types.Misconfiguration{
 							{
-								FileType:  "cloudformation",
-								FilePath:  "main.yaml",
-								Successes: nil,
-								Warnings:  nil,
-								Failures: []types.MisconfResult{
+								FileType: "cloudformation",
+								FilePath: "main.yaml",
+								Failures: types.MisconfResults{
 									{
 										Namespace: "user.something",
 										Query:     "data.user.something.deny",
@@ -667,9 +763,7 @@ func TestCloudFormationMisconfigurationScan(t *testing.T) {
 											Description:        "This is a test policy.",
 											Severity:           "LOW",
 											RecommendedActions: "Have a cup of tea.",
-											References: []string{
-												"https://trivy.dev/",
-											},
+											References:         []string{"https://trivy.dev/"},
 										},
 										CauseMetadata: types.CauseMetadata{
 											Resource:  "main.yaml:3-6",
@@ -678,11 +772,8 @@ func TestCloudFormationMisconfigurationScan(t *testing.T) {
 											StartLine: 3,
 											EndLine:   6,
 										},
-										Traces: nil,
 									},
 								},
-								Exceptions: nil,
-								Layer:      types.Layer{},
 							},
 						},
 					},
@@ -692,9 +783,9 @@ func TestCloudFormationMisconfigurationScan(t *testing.T) {
 			want: types.ArtifactReference{
 				Name: "testdata/misconfig/cloudformation/single-failure/src",
 				Type: types.ArtifactFilesystem,
-				ID:   "sha256:23b2611b7fbd0cb171930ccb6890210ded0120124bfeccbee97e04b03a63c457",
+				ID:   "sha256:3b083e0be1a8bfd270abc53a573d5491c3a39c41b88f4e978b0c48e79754e12a",
 				BlobIDs: []string{
-					"sha256:23b2611b7fbd0cb171930ccb6890210ded0120124bfeccbee97e04b03a63c457",
+					"sha256:3b083e0be1a8bfd270abc53a573d5491c3a39c41b88f4e978b0c48e79754e12a",
 				},
 			},
 		},
@@ -704,15 +795,7 @@ func TestCloudFormationMisconfigurationScan(t *testing.T) {
 				dir: "./testdata/misconfig/cloudformation/multiple-failures/src",
 			},
 			artifactOpt: artifact.Option{
-				AnalyzerGroup:     "",
-				DisabledAnalyzers: nil,
-				DisabledHandlers:  nil,
-				SkipFiles:         nil,
-				SkipDirs:          nil,
-				NoProgress:        false,
-				Offline:           false,
-				InsecureSkipTLS:   false,
-				MisconfScannerOption: config.ScannerOption{
+				MisconfScannerOption: misconf.ScannerOption{
 					RegoOnly:    true,
 					Namespaces:  []string{"user"},
 					PolicyPaths: []string{"./testdata/misconfig/cloudformation/multiple-failures/rego"},
@@ -722,15 +805,13 @@ func TestCloudFormationMisconfigurationScan(t *testing.T) {
 				Args: cache.ArtifactCachePutBlobArgs{
 					BlobIDAnything: true,
 					BlobInfo: types.BlobInfo{
-						SchemaVersion: types.BlobJSONSchemaVersion,
+						SchemaVersion: 2,
 						Misconfigurations: []types.Misconfiguration{
 							{
-								FileType:  "cloudformation",
-								FilePath:  "main.yaml",
-								Successes: nil,
-								Warnings:  nil,
-								Failures: []types.MisconfResult{
-									{
+								FileType: "cloudformation",
+								FilePath: "main.yaml",
+								Failures: types.MisconfResults{
+									types.MisconfResult{
 										Namespace: "user.something",
 										Query:     "data.user.something.deny",
 										Message:   "No buckets allowed!",
@@ -742,9 +823,7 @@ func TestCloudFormationMisconfigurationScan(t *testing.T) {
 											Description:        "This is a test policy.",
 											Severity:           "LOW",
 											RecommendedActions: "Have a cup of tea.",
-											References: []string{
-												"https://trivy.dev/",
-											},
+											References:         []string{"https://trivy.dev/"},
 										},
 										CauseMetadata: types.CauseMetadata{
 											Resource:  "main.yaml:2-5",
@@ -753,7 +832,6 @@ func TestCloudFormationMisconfigurationScan(t *testing.T) {
 											StartLine: 2,
 											EndLine:   5,
 										},
-										Traces: nil,
 									},
 									{
 										Namespace: "user.something",
@@ -767,9 +845,7 @@ func TestCloudFormationMisconfigurationScan(t *testing.T) {
 											Description:        "This is a test policy.",
 											Severity:           "LOW",
 											RecommendedActions: "Have a cup of tea.",
-											References: []string{
-												"https://trivy.dev/",
-											},
+											References:         []string{"https://trivy.dev/"},
 										},
 										CauseMetadata: types.CauseMetadata{
 											Resource:  "main.yaml:6-9",
@@ -778,11 +854,8 @@ func TestCloudFormationMisconfigurationScan(t *testing.T) {
 											StartLine: 6,
 											EndLine:   9,
 										},
-										Traces: nil,
 									},
 								},
-								Exceptions: nil,
-								Layer:      types.Layer{},
 							},
 						},
 					},
@@ -792,9 +865,9 @@ func TestCloudFormationMisconfigurationScan(t *testing.T) {
 			want: types.ArtifactReference{
 				Name: "testdata/misconfig/cloudformation/multiple-failures/src",
 				Type: types.ArtifactFilesystem,
-				ID:   "sha256:1c0e4b1be84008155bcb261ce13dcb33dd2fcb15464e436f5e386c21c88de002",
+				ID:   "sha256:e167a0b5edc1a723a6f6e37adfd72ebf5cd05a578d69a564cba2a2954f47ea5e",
 				BlobIDs: []string{
-					"sha256:1c0e4b1be84008155bcb261ce13dcb33dd2fcb15464e436f5e386c21c88de002",
+					"sha256:e167a0b5edc1a723a6f6e37adfd72ebf5cd05a578d69a564cba2a2954f47ea5e",
 				},
 			},
 		},
@@ -804,15 +877,7 @@ func TestCloudFormationMisconfigurationScan(t *testing.T) {
 				dir: "./testdata/misconfig/cloudformation/no-results/src",
 			},
 			artifactOpt: artifact.Option{
-				AnalyzerGroup:     "",
-				DisabledAnalyzers: nil,
-				DisabledHandlers:  nil,
-				SkipFiles:         nil,
-				SkipDirs:          nil,
-				NoProgress:        false,
-				Offline:           false,
-				InsecureSkipTLS:   false,
-				MisconfScannerOption: config.ScannerOption{
+				MisconfScannerOption: misconf.ScannerOption{
 					RegoOnly:    true,
 					Namespaces:  []string{"user"},
 					PolicyPaths: []string{"./testdata/misconfig/cloudformation/no-results/rego"},
@@ -830,9 +895,9 @@ func TestCloudFormationMisconfigurationScan(t *testing.T) {
 			want: types.ArtifactReference{
 				Name: "testdata/misconfig/cloudformation/no-results/src",
 				Type: types.ArtifactFilesystem,
-				ID:   "sha256:58371119b88104d4a643bda59a6957e5777174d62a09e179bbad7744e9632128",
+				ID:   "sha256:cf90e43f7fb29358faf6f486db722ee739122347ec94839c7f3861489f242213",
 				BlobIDs: []string{
-					"sha256:58371119b88104d4a643bda59a6957e5777174d62a09e179bbad7744e9632128",
+					"sha256:cf90e43f7fb29358faf6f486db722ee739122347ec94839c7f3861489f242213",
 				},
 			},
 		},
@@ -842,15 +907,7 @@ func TestCloudFormationMisconfigurationScan(t *testing.T) {
 				dir: "./testdata/misconfig/cloudformation/passed/src",
 			},
 			artifactOpt: artifact.Option{
-				AnalyzerGroup:     "",
-				DisabledAnalyzers: nil,
-				DisabledHandlers:  nil,
-				SkipFiles:         nil,
-				SkipDirs:          nil,
-				NoProgress:        false,
-				Offline:           false,
-				InsecureSkipTLS:   false,
-				MisconfScannerOption: config.ScannerOption{
+				MisconfScannerOption: misconf.ScannerOption{
 					RegoOnly:    true,
 					Namespaces:  []string{"user"},
 					PolicyPaths: []string{"./testdata/misconfig/cloudformation/passed/rego"},
@@ -860,16 +917,15 @@ func TestCloudFormationMisconfigurationScan(t *testing.T) {
 				Args: cache.ArtifactCachePutBlobArgs{
 					BlobIDAnything: true,
 					BlobInfo: types.BlobInfo{
-						SchemaVersion: types.BlobJSONSchemaVersion,
+						SchemaVersion: 2,
 						Misconfigurations: []types.Misconfiguration{
 							{
 								FileType: "cloudformation",
 								FilePath: "main.yaml",
-								Successes: []types.MisconfResult{
+								Successes: types.MisconfResults{
 									{
 										Namespace: "user.something",
 										Query:     "data.user.something.deny",
-										Message:   "",
 										PolicyMetadata: types.PolicyMetadata{
 											ID:                 "TEST001",
 											AVDID:              "AVD-TEST-0001",
@@ -878,21 +934,14 @@ func TestCloudFormationMisconfigurationScan(t *testing.T) {
 											Description:        "This is a test policy.",
 											Severity:           "LOW",
 											RecommendedActions: "Have a cup of tea.",
-											References: []string{
-												"https://trivy.dev/",
-											},
+											References:         []string{"https://trivy.dev/"},
 										},
 										CauseMetadata: types.CauseMetadata{
-											Resource:  "",
-											Provider:  "Generic",
-											Service:   "general",
-											StartLine: 0,
-											EndLine:   0,
+											Provider: "Generic",
+											Service:  "general",
 										},
-										Traces: nil,
 									},
 								},
-								Layer: types.Layer{},
 							},
 						},
 					},
@@ -902,9 +951,9 @@ func TestCloudFormationMisconfigurationScan(t *testing.T) {
 			want: types.ArtifactReference{
 				Name: "testdata/misconfig/cloudformation/passed/src",
 				Type: types.ArtifactFilesystem,
-				ID:   "sha256:e0843d89e0c2d1b75aac46619f6b205e723f53a8d78535cc4da9e5e675118d65",
+				ID:   "sha256:68de62641f1c26e9973cc699aa7f84f3cb02a305d73238eba6cace5d749e4549",
 				BlobIDs: []string{
-					"sha256:e0843d89e0c2d1b75aac46619f6b205e723f53a8d78535cc4da9e5e675118d65",
+					"sha256:68de62641f1c26e9973cc699aa7f84f3cb02a305d73238eba6cace5d749e4549",
 				},
 			},
 		},
@@ -915,7 +964,6 @@ func TestCloudFormationMisconfigurationScan(t *testing.T) {
 			c.ApplyPutBlobExpectation(tt.putBlobExpectation)
 			tt.artifactOpt.DisabledHandlers = []types.HandlerType{
 				types.SystemFileFilteringPostHandler,
-				types.GoModMergePostHandler,
 			}
 			a, err := NewArtifact(tt.fields.dir, c, tt.artifactOpt)
 			require.NoError(t, err)
@@ -944,15 +992,7 @@ func TestDockerfileMisconfigurationScan(t *testing.T) {
 				dir: "./testdata/misconfig/dockerfile/single-failure/src",
 			},
 			artifactOpt: artifact.Option{
-				AnalyzerGroup:     "",
-				DisabledAnalyzers: nil,
-				DisabledHandlers:  nil,
-				SkipFiles:         nil,
-				SkipDirs:          nil,
-				NoProgress:        false,
-				Offline:           false,
-				InsecureSkipTLS:   false,
-				MisconfScannerOption: config.ScannerOption{
+				MisconfScannerOption: misconf.ScannerOption{
 					RegoOnly:                true,
 					Namespaces:              []string{"user"},
 					PolicyPaths:             []string{"./testdata/misconfig/dockerfile/single-failure/rego"},
@@ -964,11 +1004,6 @@ func TestDockerfileMisconfigurationScan(t *testing.T) {
 					BlobIDAnything: true,
 					BlobInfo: types.BlobInfo{
 						SchemaVersion: types.BlobJSONSchemaVersion,
-						Digest:        "", DiffID: "",
-						OS:           (*types.OS)(nil),
-						Repository:   (*types.Repository)(nil),
-						PackageInfos: []types.PackageInfo(nil),
-						Applications: []types.Application(nil),
 						Misconfigurations: []types.Misconfiguration{
 							{
 								FileType: "dockerfile",
@@ -977,7 +1012,6 @@ func TestDockerfileMisconfigurationScan(t *testing.T) {
 									types.MisconfResult{
 										Namespace: "user.something",
 										Query:     "data.user.something.deny",
-										Message:   "",
 										PolicyMetadata: types.PolicyMetadata{
 											ID:                 "TEST001",
 											AVDID:              "AVD-TEST-0001",
@@ -989,30 +1023,13 @@ func TestDockerfileMisconfigurationScan(t *testing.T) {
 											References:         []string{"https://trivy.dev/"},
 										},
 										CauseMetadata: types.CauseMetadata{
-											Resource:  "",
-											Provider:  "Generic",
-											Service:   "general",
-											StartLine: 0,
-											EndLine:   0,
-											Code: types.Code{
-												Lines: []types.Line(nil),
-											},
-										}, Traces: []string(nil),
+											Provider: "Generic",
+											Service:  "general",
+										},
 									},
 								},
-								Warnings:   types.MisconfResults(nil),
-								Failures:   types.MisconfResults(nil),
-								Exceptions: types.MisconfResults(nil),
-								Layer: types.Layer{
-									Digest: "",
-									DiffID: "",
-								},
 							},
-						}, Secrets: []types.Secret(nil),
-						OpaqueDirs:      []string(nil),
-						WhiteoutFiles:   []string(nil),
-						BuildInfo:       (*types.BuildInfo)(nil),
-						CustomResources: []types.CustomResource(nil),
+						},
 					},
 				},
 				Returns: cache.ArtifactCachePutBlobReturns{},
@@ -1020,9 +1037,9 @@ func TestDockerfileMisconfigurationScan(t *testing.T) {
 			want: types.ArtifactReference{
 				Name: "testdata/misconfig/dockerfile/single-failure/src",
 				Type: types.ArtifactFilesystem,
-				ID:   "sha256:4b0783905a99a1e645fc00945a008c0d42424a87366dbf99833d8efeafe70361",
+				ID:   "sha256:998908fee16ac8aa658138e5bda73f5ffba4f1d194e9d3b3e274a8082b4af580",
 				BlobIDs: []string{
-					"sha256:4b0783905a99a1e645fc00945a008c0d42424a87366dbf99833d8efeafe70361",
+					"sha256:998908fee16ac8aa658138e5bda73f5ffba4f1d194e9d3b3e274a8082b4af580",
 				},
 			},
 		},
@@ -1032,15 +1049,7 @@ func TestDockerfileMisconfigurationScan(t *testing.T) {
 				dir: "./testdata/misconfig/dockerfile/multiple-failures/src",
 			},
 			artifactOpt: artifact.Option{
-				AnalyzerGroup:     "",
-				DisabledAnalyzers: nil,
-				DisabledHandlers:  nil,
-				SkipFiles:         nil,
-				SkipDirs:          nil,
-				NoProgress:        false,
-				Offline:           false,
-				InsecureSkipTLS:   false,
-				MisconfScannerOption: config.ScannerOption{
+				MisconfScannerOption: misconf.ScannerOption{
 					RegoOnly:                true,
 					Namespaces:              []string{"user"},
 					PolicyPaths:             []string{"./testdata/misconfig/dockerfile/multiple-failures/rego"},
@@ -1052,12 +1061,6 @@ func TestDockerfileMisconfigurationScan(t *testing.T) {
 					BlobIDAnything: true,
 					BlobInfo: types.BlobInfo{
 						SchemaVersion: types.BlobJSONSchemaVersion,
-						Digest:        "",
-						DiffID:        "",
-						OS:            (*types.OS)(nil),
-						Repository:    (*types.Repository)(nil),
-						PackageInfos:  []types.PackageInfo(nil),
-						Applications:  []types.Application(nil),
 						Misconfigurations: []types.Misconfiguration{
 							{
 								FileType: "dockerfile",
@@ -1066,7 +1069,6 @@ func TestDockerfileMisconfigurationScan(t *testing.T) {
 									types.MisconfResult{
 										Namespace: "user.something",
 										Query:     "data.user.something.deny",
-										Message:   "",
 										PolicyMetadata: types.PolicyMetadata{
 											ID:                 "TEST001",
 											AVDID:              "AVD-TEST-0001",
@@ -1078,30 +1080,13 @@ func TestDockerfileMisconfigurationScan(t *testing.T) {
 											References:         []string{"https://trivy.dev/"},
 										},
 										CauseMetadata: types.CauseMetadata{
-											Resource:  "",
-											Provider:  "Generic",
-											Service:   "general",
-											StartLine: 0,
-											EndLine:   0,
-											Code: types.Code{
-												Lines: []types.Line(nil),
-											},
-										}, Traces: []string(nil),
+											Provider: "Generic",
+											Service:  "general",
+										},
 									},
 								},
-								Warnings:   types.MisconfResults(nil),
-								Failures:   types.MisconfResults(nil),
-								Exceptions: types.MisconfResults(nil),
-								Layer: types.Layer{
-									Digest: "",
-									DiffID: "",
-								},
 							},
-						}, Secrets: []types.Secret(nil),
-						OpaqueDirs:      []string(nil),
-						WhiteoutFiles:   []string(nil),
-						BuildInfo:       (*types.BuildInfo)(nil),
-						CustomResources: []types.CustomResource(nil),
+						},
 					},
 				},
 				Returns: cache.ArtifactCachePutBlobReturns{},
@@ -1109,9 +1094,9 @@ func TestDockerfileMisconfigurationScan(t *testing.T) {
 			want: types.ArtifactReference{
 				Name: "testdata/misconfig/dockerfile/multiple-failures/src",
 				Type: types.ArtifactFilesystem,
-				ID:   "sha256:4b0783905a99a1e645fc00945a008c0d42424a87366dbf99833d8efeafe70361",
+				ID:   "sha256:998908fee16ac8aa658138e5bda73f5ffba4f1d194e9d3b3e274a8082b4af580",
 				BlobIDs: []string{
-					"sha256:4b0783905a99a1e645fc00945a008c0d42424a87366dbf99833d8efeafe70361",
+					"sha256:998908fee16ac8aa658138e5bda73f5ffba4f1d194e9d3b3e274a8082b4af580",
 				},
 			},
 		},
@@ -1121,15 +1106,7 @@ func TestDockerfileMisconfigurationScan(t *testing.T) {
 				dir: "./testdata/misconfig/dockerfile/no-results/src",
 			},
 			artifactOpt: artifact.Option{
-				AnalyzerGroup:     "",
-				DisabledAnalyzers: nil,
-				DisabledHandlers:  nil,
-				SkipFiles:         nil,
-				SkipDirs:          nil,
-				NoProgress:        false,
-				Offline:           false,
-				InsecureSkipTLS:   false,
-				MisconfScannerOption: config.ScannerOption{
+				MisconfScannerOption: misconf.ScannerOption{
 					RegoOnly:    true,
 					Namespaces:  []string{"user"},
 					PolicyPaths: []string{"./testdata/misconfig/dockerfile/no-results/rego"},
@@ -1147,9 +1124,9 @@ func TestDockerfileMisconfigurationScan(t *testing.T) {
 			want: types.ArtifactReference{
 				Name: "testdata/misconfig/dockerfile/no-results/src",
 				Type: types.ArtifactFilesystem,
-				ID:   "sha256:58371119b88104d4a643bda59a6957e5777174d62a09e179bbad7744e9632128",
+				ID:   "sha256:cf90e43f7fb29358faf6f486db722ee739122347ec94839c7f3861489f242213",
 				BlobIDs: []string{
-					"sha256:58371119b88104d4a643bda59a6957e5777174d62a09e179bbad7744e9632128",
+					"sha256:cf90e43f7fb29358faf6f486db722ee739122347ec94839c7f3861489f242213",
 				},
 			},
 		},
@@ -1159,15 +1136,7 @@ func TestDockerfileMisconfigurationScan(t *testing.T) {
 				dir: "./testdata/misconfig/dockerfile/passed/src",
 			},
 			artifactOpt: artifact.Option{
-				AnalyzerGroup:     "",
-				DisabledAnalyzers: nil,
-				DisabledHandlers:  nil,
-				SkipFiles:         nil,
-				SkipDirs:          nil,
-				NoProgress:        false,
-				Offline:           false,
-				InsecureSkipTLS:   false,
-				MisconfScannerOption: config.ScannerOption{
+				MisconfScannerOption: misconf.ScannerOption{
 					RegoOnly:                true,
 					Namespaces:              []string{"user"},
 					PolicyPaths:             []string{"./testdata/misconfig/dockerfile/passed/rego"},
@@ -1187,7 +1156,6 @@ func TestDockerfileMisconfigurationScan(t *testing.T) {
 									{
 										Namespace: "user.something",
 										Query:     "data.user.something.deny",
-										Message:   "",
 										PolicyMetadata: types.PolicyMetadata{
 											ID:                 "TEST001",
 											AVDID:              "AVD-TEST-0001",
@@ -1201,16 +1169,11 @@ func TestDockerfileMisconfigurationScan(t *testing.T) {
 											},
 										},
 										CauseMetadata: types.CauseMetadata{
-											Resource:  "",
-											Provider:  "Generic",
-											Service:   "general",
-											StartLine: 0,
-											EndLine:   0,
+											Provider: "Generic",
+											Service:  "general",
 										},
-										Traces: nil,
 									},
 								},
-								Layer: types.Layer{},
 							},
 						},
 					},
@@ -1220,9 +1183,9 @@ func TestDockerfileMisconfigurationScan(t *testing.T) {
 			want: types.ArtifactReference{
 				Name: "testdata/misconfig/dockerfile/passed/src",
 				Type: types.ArtifactFilesystem,
-				ID:   "sha256:92a2a8fb73136f4f1d5ec38bf66d9b38fd5db288869e727aed5f7516f60633db",
+				ID:   "sha256:836ab9fec50d3ff799f01dee1db9d5340294fa0348011370d55848be04696f6b",
 				BlobIDs: []string{
-					"sha256:92a2a8fb73136f4f1d5ec38bf66d9b38fd5db288869e727aed5f7516f60633db",
+					"sha256:836ab9fec50d3ff799f01dee1db9d5340294fa0348011370d55848be04696f6b",
 				},
 			},
 		},
@@ -1233,7 +1196,6 @@ func TestDockerfileMisconfigurationScan(t *testing.T) {
 			c.ApplyPutBlobExpectation(tt.putBlobExpectation)
 			tt.artifactOpt.DisabledHandlers = []types.HandlerType{
 				types.SystemFileFilteringPostHandler,
-				types.GoModMergePostHandler,
 			}
 			a, err := NewArtifact(tt.fields.dir, c, tt.artifactOpt)
 			require.NoError(t, err)
@@ -1262,15 +1224,7 @@ func TestKubernetesMisconfigurationScan(t *testing.T) {
 				dir: "./testdata/misconfig/kubernetes/single-failure/src",
 			},
 			artifactOpt: artifact.Option{
-				AnalyzerGroup:     "",
-				DisabledAnalyzers: nil,
-				DisabledHandlers:  nil,
-				SkipFiles:         nil,
-				SkipDirs:          nil,
-				NoProgress:        false,
-				Offline:           false,
-				InsecureSkipTLS:   false,
-				MisconfScannerOption: config.ScannerOption{
+				MisconfScannerOption: misconf.ScannerOption{
 					RegoOnly:                true,
 					Namespaces:              []string{"user"},
 					PolicyPaths:             []string{"./testdata/misconfig/kubernetes/single-failure/rego"},
@@ -1284,10 +1238,8 @@ func TestKubernetesMisconfigurationScan(t *testing.T) {
 						SchemaVersion: types.BlobJSONSchemaVersion,
 						Misconfigurations: []types.Misconfiguration{
 							{
-								FileType:  "kubernetes",
-								FilePath:  "test.yaml",
-								Successes: nil,
-								Warnings:  nil,
+								FileType: "kubernetes",
+								FilePath: "test.yaml",
 								Failures: []types.MisconfResult{
 									{
 										Namespace: "user.something",
@@ -1311,11 +1263,8 @@ func TestKubernetesMisconfigurationScan(t *testing.T) {
 											StartLine: 7,
 											EndLine:   9,
 										},
-										Traces: nil,
 									},
 								},
-								Exceptions: nil,
-								Layer:      types.Layer{},
 							},
 						},
 					},
@@ -1325,9 +1274,9 @@ func TestKubernetesMisconfigurationScan(t *testing.T) {
 			want: types.ArtifactReference{
 				Name: "testdata/misconfig/kubernetes/single-failure/src",
 				Type: types.ArtifactFilesystem,
-				ID:   "sha256:af6a4b3a5906ea8495a21a315bc4accd97effb249ccb3e0c75d8720c386e5bfb",
+				ID:   "sha256:c2ff22ba22599a7b5423c1b275b013aab56cc22eb732624db4b1bfbdf6b62743",
 				BlobIDs: []string{
-					"sha256:af6a4b3a5906ea8495a21a315bc4accd97effb249ccb3e0c75d8720c386e5bfb",
+					"sha256:c2ff22ba22599a7b5423c1b275b013aab56cc22eb732624db4b1bfbdf6b62743",
 				},
 			},
 		},
@@ -1337,15 +1286,7 @@ func TestKubernetesMisconfigurationScan(t *testing.T) {
 				dir: "./testdata/misconfig/kubernetes/multiple-failures/src",
 			},
 			artifactOpt: artifact.Option{
-				AnalyzerGroup:     "",
-				DisabledAnalyzers: nil,
-				DisabledHandlers:  nil,
-				SkipFiles:         nil,
-				SkipDirs:          nil,
-				NoProgress:        false,
-				Offline:           false,
-				InsecureSkipTLS:   false,
-				MisconfScannerOption: config.ScannerOption{
+				MisconfScannerOption: misconf.ScannerOption{
 					RegoOnly:                true,
 					Namespaces:              []string{"user"},
 					PolicyPaths:             []string{"./testdata/misconfig/kubernetes/multiple-failures/rego"},
@@ -1359,10 +1300,8 @@ func TestKubernetesMisconfigurationScan(t *testing.T) {
 						SchemaVersion: types.BlobJSONSchemaVersion,
 						Misconfigurations: []types.Misconfiguration{
 							{
-								FileType:  "kubernetes",
-								FilePath:  "test.yaml",
-								Successes: nil,
-								Warnings:  nil,
+								FileType: "kubernetes",
+								FilePath: "test.yaml",
 								Failures: []types.MisconfResult{
 									{
 										Namespace: "user.something",
@@ -1386,7 +1325,6 @@ func TestKubernetesMisconfigurationScan(t *testing.T) {
 											StartLine: 7,
 											EndLine:   9,
 										},
-										Traces: nil,
 									},
 									{
 										Namespace: "user.something",
@@ -1410,11 +1348,8 @@ func TestKubernetesMisconfigurationScan(t *testing.T) {
 											StartLine: 10,
 											EndLine:   12,
 										},
-										Traces: nil,
 									},
 								},
-								Exceptions: nil,
-								Layer:      types.Layer{},
 							},
 						},
 					},
@@ -1424,9 +1359,9 @@ func TestKubernetesMisconfigurationScan(t *testing.T) {
 			want: types.ArtifactReference{
 				Name: "testdata/misconfig/kubernetes/multiple-failures/src",
 				Type: types.ArtifactFilesystem,
-				ID:   "sha256:e681637468d8a07c867602047c84b2acceb7da1b36dbc96b6edb3df3fa711788",
+				ID:   "sha256:485e85ab412143ca5ab48f09c2a3dcacf8283c28c4f451a4b63d377ba2a21c15",
 				BlobIDs: []string{
-					"sha256:e681637468d8a07c867602047c84b2acceb7da1b36dbc96b6edb3df3fa711788",
+					"sha256:485e85ab412143ca5ab48f09c2a3dcacf8283c28c4f451a4b63d377ba2a21c15",
 				},
 			},
 		},
@@ -1436,15 +1371,7 @@ func TestKubernetesMisconfigurationScan(t *testing.T) {
 				dir: "./testdata/misconfig/kubernetes/no-results/src",
 			},
 			artifactOpt: artifact.Option{
-				AnalyzerGroup:     "",
-				DisabledAnalyzers: nil,
-				DisabledHandlers:  nil,
-				SkipFiles:         nil,
-				SkipDirs:          nil,
-				NoProgress:        false,
-				Offline:           false,
-				InsecureSkipTLS:   false,
-				MisconfScannerOption: config.ScannerOption{
+				MisconfScannerOption: misconf.ScannerOption{
 					RegoOnly:    true,
 					Namespaces:  []string{"user"},
 					PolicyPaths: []string{"./testdata/misconfig/kubernetes/no-results/rego"},
@@ -1462,9 +1389,9 @@ func TestKubernetesMisconfigurationScan(t *testing.T) {
 			want: types.ArtifactReference{
 				Name: "testdata/misconfig/kubernetes/no-results/src",
 				Type: types.ArtifactFilesystem,
-				ID:   "sha256:63ee9fc1ce356a810234d884f9056432df7048485565a15bf3448644f4d97abe",
+				ID:   "sha256:e68b0e0ac19f7ef311025a3dd587cab0512e51cd19f80e3a8f7dde342979933a",
 				BlobIDs: []string{
-					"sha256:63ee9fc1ce356a810234d884f9056432df7048485565a15bf3448644f4d97abe",
+					"sha256:e68b0e0ac19f7ef311025a3dd587cab0512e51cd19f80e3a8f7dde342979933a",
 				},
 			},
 		},
@@ -1474,15 +1401,7 @@ func TestKubernetesMisconfigurationScan(t *testing.T) {
 				dir: "./testdata/misconfig/kubernetes/passed/src",
 			},
 			artifactOpt: artifact.Option{
-				AnalyzerGroup:     "",
-				DisabledAnalyzers: nil,
-				DisabledHandlers:  nil,
-				SkipFiles:         nil,
-				SkipDirs:          nil,
-				NoProgress:        false,
-				Offline:           false,
-				InsecureSkipTLS:   false,
-				MisconfScannerOption: config.ScannerOption{
+				MisconfScannerOption: misconf.ScannerOption{
 					RegoOnly:                true,
 					Namespaces:              []string{"user"},
 					PolicyPaths:             []string{"./testdata/misconfig/kubernetes/passed/rego"},
@@ -1502,7 +1421,6 @@ func TestKubernetesMisconfigurationScan(t *testing.T) {
 									{
 										Namespace: "user.something",
 										Query:     "data.user.something.deny",
-										Message:   "",
 										PolicyMetadata: types.PolicyMetadata{
 											ID:                 "TEST001",
 											AVDID:              "AVD-TEST-0001",
@@ -1516,16 +1434,11 @@ func TestKubernetesMisconfigurationScan(t *testing.T) {
 											},
 										},
 										CauseMetadata: types.CauseMetadata{
-											Resource:  "",
-											Provider:  "Generic",
-											Service:   "general",
-											StartLine: 0,
-											EndLine:   0,
+											Provider: "Generic",
+											Service:  "general",
 										},
-										Traces: nil,
 									},
 								},
-								Layer: types.Layer{},
 							},
 						},
 					},
@@ -1535,9 +1448,9 @@ func TestKubernetesMisconfigurationScan(t *testing.T) {
 			want: types.ArtifactReference{
 				Name: "testdata/misconfig/kubernetes/passed/src",
 				Type: types.ArtifactFilesystem,
-				ID:   "sha256:0e2a1bd08e49eba4ba3f829b87ab9021b949d4c3983d8c494cd0febfa7adc0cb",
+				ID:   "sha256:f6d3e8b62915ad822e643fabf146214e8e3a8349ea2ba509366748e858a42159",
 				BlobIDs: []string{
-					"sha256:0e2a1bd08e49eba4ba3f829b87ab9021b949d4c3983d8c494cd0febfa7adc0cb",
+					"sha256:f6d3e8b62915ad822e643fabf146214e8e3a8349ea2ba509366748e858a42159",
 				},
 			},
 		},
@@ -1548,7 +1461,6 @@ func TestKubernetesMisconfigurationScan(t *testing.T) {
 			c.ApplyPutBlobExpectation(tt.putBlobExpectation)
 			tt.artifactOpt.DisabledHandlers = []types.HandlerType{
 				types.SystemFileFilteringPostHandler,
-				types.GoModMergePostHandler,
 			}
 			a, err := NewArtifact(tt.fields.dir, c, tt.artifactOpt)
 			require.NoError(t, err)
@@ -1558,4 +1470,379 @@ func TestKubernetesMisconfigurationScan(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestAzureARMMisconfigurationScan(t *testing.T) {
+	type fields struct {
+		dir string
+	}
+	tests := []struct {
+		name               string
+		fields             fields
+		putBlobExpectation cache.ArtifactCachePutBlobExpectation
+		artifactOpt        artifact.Option
+		want               types.ArtifactReference
+	}{
+		{
+			name: "single failure",
+			fields: fields{
+				dir: "./testdata/misconfig/azurearm/single-failure/src",
+			},
+			artifactOpt: artifact.Option{
+				MisconfScannerOption: misconf.ScannerOption{
+					RegoOnly:    true,
+					Namespaces:  []string{"user"},
+					PolicyPaths: []string{"./testdata/misconfig/azurearm/single-failure/rego"},
+				},
+			},
+			putBlobExpectation: cache.ArtifactCachePutBlobExpectation{
+				Args: cache.ArtifactCachePutBlobArgs{
+					BlobIDAnything: true,
+					BlobInfo: types.BlobInfo{
+						SchemaVersion: 2,
+						Misconfigurations: []types.Misconfiguration{
+							{
+								FileType: "azure-arm",
+								FilePath: "deploy.json",
+								Failures: types.MisconfResults{
+									{
+										Namespace: "user.something",
+										Query:     "data.user.something.deny",
+										Message:   "No account allowed!",
+										PolicyMetadata: types.PolicyMetadata{
+											ID:                 "TEST001",
+											AVDID:              "AVD-TEST-0001",
+											Type:               "Azure ARM Security Check",
+											Title:              "Test policy",
+											Description:        "This is a test policy.",
+											Severity:           "LOW",
+											RecommendedActions: "Have a cup of tea.",
+											References:         []string{"https://trivy.dev/"},
+										},
+										CauseMetadata: types.CauseMetadata{
+											Resource:  "resources[0]",
+											Provider:  "Generic",
+											Service:   "general",
+											StartLine: 30,
+											EndLine:   40,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				Returns: cache.ArtifactCachePutBlobReturns{},
+			},
+			want: types.ArtifactReference{
+				Name: "testdata/misconfig/azurearm/single-failure/src",
+				Type: types.ArtifactFilesystem,
+				ID:   "sha256:96697231b9abb6529c3fab2df31316730edd53ec2e8fbb5f7dbd2179e1c8bf3b",
+				BlobIDs: []string{
+					"sha256:96697231b9abb6529c3fab2df31316730edd53ec2e8fbb5f7dbd2179e1c8bf3b",
+				},
+			},
+		},
+		{
+			name: "multiple failures",
+			fields: fields{
+				dir: "./testdata/misconfig/azurearm/multiple-failures/src",
+			},
+			artifactOpt: artifact.Option{
+				MisconfScannerOption: misconf.ScannerOption{
+					RegoOnly:    true,
+					Namespaces:  []string{"user"},
+					PolicyPaths: []string{"./testdata/misconfig/azurearm/multiple-failures/rego"},
+				},
+			},
+			putBlobExpectation: cache.ArtifactCachePutBlobExpectation{
+				Args: cache.ArtifactCachePutBlobArgs{
+					BlobIDAnything: true,
+					BlobInfo: types.BlobInfo{
+						SchemaVersion: 2,
+						Misconfigurations: []types.Misconfiguration{
+							{
+								FileType: "azure-arm",
+								FilePath: "deploy.json",
+								Failures: types.MisconfResults{
+									{
+										Namespace: "user.something",
+										Query:     "data.user.something.deny",
+										Message:   "No account allowed!",
+										PolicyMetadata: types.PolicyMetadata{
+											ID:                 "TEST001",
+											AVDID:              "AVD-TEST-0001",
+											Type:               "Azure ARM Security Check",
+											Title:              "Test policy",
+											Description:        "This is a test policy.",
+											Severity:           "LOW",
+											RecommendedActions: "Have a cup of tea.",
+											References:         []string{"https://trivy.dev/"},
+										},
+										CauseMetadata: types.CauseMetadata{
+											Resource:  "resources[0]",
+											Provider:  "Generic",
+											Service:   "general",
+											StartLine: 30,
+											EndLine:   40,
+										},
+									},
+									{
+										Namespace: "user.something",
+										Query:     "data.user.something.deny",
+										Message:   "No account allowed!",
+										PolicyMetadata: types.PolicyMetadata{
+											ID:                 "TEST001",
+											AVDID:              "AVD-TEST-0001",
+											Type:               "Azure ARM Security Check",
+											Title:              "Test policy",
+											Description:        "This is a test policy.",
+											Severity:           "LOW",
+											RecommendedActions: "Have a cup of tea.",
+											References:         []string{"https://trivy.dev/"},
+										},
+										CauseMetadata: types.CauseMetadata{
+											Resource:  "resources[1]",
+											Provider:  "Generic",
+											Service:   "general",
+											StartLine: 41,
+											EndLine:   51,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				Returns: cache.ArtifactCachePutBlobReturns{},
+			},
+			want: types.ArtifactReference{
+				Name: "testdata/misconfig/azurearm/multiple-failures/src",
+				Type: types.ArtifactFilesystem,
+				ID:   "sha256:682771ea4115a19d2835e83c0b5b49caf9a5f97664c69c2f9f5c18eae34cac88",
+				BlobIDs: []string{
+					"sha256:682771ea4115a19d2835e83c0b5b49caf9a5f97664c69c2f9f5c18eae34cac88",
+				},
+			},
+		},
+		{
+			name: "no results",
+			fields: fields{
+				dir: "./testdata/misconfig/azurearm/no-results/src",
+			},
+			artifactOpt: artifact.Option{
+				MisconfScannerOption: misconf.ScannerOption{
+					RegoOnly:    true,
+					Namespaces:  []string{"user"},
+					PolicyPaths: []string{"./testdata/misconfig/azurearm/no-results/rego"},
+				},
+			},
+			putBlobExpectation: cache.ArtifactCachePutBlobExpectation{
+				Args: cache.ArtifactCachePutBlobArgs{
+					BlobIDAnything: true,
+					BlobInfo: types.BlobInfo{
+						SchemaVersion: types.BlobJSONSchemaVersion,
+					},
+				},
+				Returns: cache.ArtifactCachePutBlobReturns{},
+			},
+			want: types.ArtifactReference{
+				Name: "testdata/misconfig/azurearm/no-results/src",
+				Type: types.ArtifactFilesystem,
+				ID:   "sha256:cf90e43f7fb29358faf6f486db722ee739122347ec94839c7f3861489f242213",
+				BlobIDs: []string{
+					"sha256:cf90e43f7fb29358faf6f486db722ee739122347ec94839c7f3861489f242213",
+				},
+			},
+		},
+		{
+			name: "passed",
+			fields: fields{
+				dir: "./testdata/misconfig/azurearm/passed/src",
+			},
+			artifactOpt: artifact.Option{
+				MisconfScannerOption: misconf.ScannerOption{
+					RegoOnly:    true,
+					Namespaces:  []string{"user"},
+					PolicyPaths: []string{"./testdata/misconfig/azurearm/passed/rego"},
+				},
+			},
+			putBlobExpectation: cache.ArtifactCachePutBlobExpectation{
+				Args: cache.ArtifactCachePutBlobArgs{
+					BlobIDAnything: true,
+					BlobInfo: types.BlobInfo{
+						SchemaVersion: 2,
+						Misconfigurations: []types.Misconfiguration{
+							{
+								FileType: "azure-arm",
+								FilePath: "deploy.json",
+								Successes: types.MisconfResults{
+									{
+										Namespace: "user.something",
+										Query:     "data.user.something.deny",
+										PolicyMetadata: types.PolicyMetadata{
+											ID:                 "TEST001",
+											AVDID:              "AVD-TEST-0001",
+											Type:               "Azure ARM Security Check",
+											Title:              "Test policy",
+											Description:        "This is a test policy.",
+											Severity:           "LOW",
+											RecommendedActions: "Have a cup of tea.",
+											References:         []string{"https://trivy.dev/"},
+										},
+										CauseMetadata: types.CauseMetadata{
+											Provider: "Generic",
+											Service:  "general",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				Returns: cache.ArtifactCachePutBlobReturns{},
+			},
+			want: types.ArtifactReference{
+				Name: "testdata/misconfig/azurearm/passed/src",
+				Type: types.ArtifactFilesystem,
+				ID:   "sha256:e266ca6dc704e6d71a55370d65bd72c5a6bcbb38eb2cff19db827863c4af68f3",
+				BlobIDs: []string{
+					"sha256:e266ca6dc704e6d71a55370d65bd72c5a6bcbb38eb2cff19db827863c4af68f3",
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := new(cache.MockArtifactCache)
+			c.ApplyPutBlobExpectation(tt.putBlobExpectation)
+			tt.artifactOpt.DisabledHandlers = []types.HandlerType{
+				types.SystemFileFilteringPostHandler,
+			}
+			a, err := NewArtifact(tt.fields.dir, c, tt.artifactOpt)
+			require.NoError(t, err)
+
+			got, err := a.Inspect(context.Background())
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestMixedConfigurationScan(t *testing.T) {
+	type fields struct {
+		dir string
+	}
+	tests := []struct {
+		name               string
+		fields             fields
+		putBlobExpectation cache.ArtifactCachePutBlobExpectation
+		artifactOpt        artifact.Option
+		want               types.ArtifactReference
+	}{
+		{
+			name: "single failure each within terraform and cloudformation",
+			fields: fields{
+				dir: "./testdata/misconfig/mixed/src",
+			},
+			artifactOpt: artifact.Option{
+				MisconfScannerOption: misconf.ScannerOption{
+					RegoOnly:    true,
+					Namespaces:  []string{"user"},
+					PolicyPaths: []string{"./testdata/misconfig/mixed/rego"},
+				},
+			},
+			putBlobExpectation: cache.ArtifactCachePutBlobExpectation{
+				Args: cache.ArtifactCachePutBlobArgs{
+					BlobIDAnything: true,
+					BlobInfo: types.BlobInfo{
+						SchemaVersion: 2,
+						Misconfigurations: []types.Misconfiguration{
+							{
+								FileType: "terraform",
+								FilePath: "main.tf",
+								Failures: types.MisconfResults{
+									{
+										Namespace: "user.something",
+										Query:     "data.user.something.deny",
+										Message:   "No buckets allowed!",
+										PolicyMetadata: types.PolicyMetadata{
+											ID:                 "TEST001",
+											AVDID:              "AVD-TEST-0001",
+											Type:               "Terraform Security Check",
+											Title:              "Test policy",
+											Description:        "This is a test policy.",
+											Severity:           "LOW",
+											RecommendedActions: "Have a cup of tea.",
+											References:         []string{"https://trivy.dev/"},
+										},
+										CauseMetadata: types.CauseMetadata{
+											Resource:  "aws_s3_bucket.asd",
+											Provider:  "Generic",
+											Service:   "general",
+											StartLine: 1,
+											EndLine:   3,
+										},
+									},
+								},
+							},
+							{
+								FileType: "cloudformation",
+								FilePath: "main.yaml",
+								Failures: types.MisconfResults{
+									{
+										Namespace: "user.something",
+										Query:     "data.user.something.deny",
+										Message:   "No buckets allowed!",
+										PolicyMetadata: types.PolicyMetadata{
+											ID:                 "TEST001",
+											AVDID:              "AVD-TEST-0001",
+											Type:               "CloudFormation Security Check",
+											Title:              "Test policy",
+											Description:        "This is a test policy.",
+											Severity:           "LOW",
+											RecommendedActions: "Have a cup of tea.",
+											References:         []string{"https://trivy.dev/"},
+										},
+										CauseMetadata: types.CauseMetadata{
+											Resource:  "main.yaml:3-6",
+											Provider:  "Generic",
+											Service:   "general",
+											StartLine: 3,
+											EndLine:   6,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				Returns: cache.ArtifactCachePutBlobReturns{},
+			},
+			want: types.ArtifactReference{
+				Name: "testdata/misconfig/mixed/src",
+				Type: types.ArtifactFilesystem,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := new(cache.MockArtifactCache)
+			c.ApplyPutBlobExpectation(tt.putBlobExpectation)
+			tt.artifactOpt.DisabledHandlers = []types.HandlerType{
+				types.SystemFileFilteringPostHandler,
+			}
+			a, err := NewArtifact(tt.fields.dir, c, tt.artifactOpt)
+			require.NoError(t, err)
+
+			got, err := a.Inspect(context.Background())
+			require.NoError(t, err)
+			require.NotNil(t, got)
+
+			assert.Equal(t, tt.want.Name, got.Name)
+			assert.Equal(t, tt.want.Type, got.Type)
+		})
+	}
+
 }
